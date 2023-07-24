@@ -1,0 +1,50 @@
+---
+# tasks file for apache
+- name: install packages
+  ansible.builtin.dnf:
+    name: "httpd"
+    state: present
+
+- name: Delete conf httpd
+  ansible.builtin.file:
+    path: /etc/httpd/conf.d/welcome.conf
+    state: absent
+
+- name: Create folder
+  ansible.builtin.file:
+    path: "/var/www/html/pxe/{{ item.release }}/ks_files"
+    state: directory
+    recurse: yes
+  loop: "{{ pxe[0].servers | json_query('[]') }}"
+
+- name: Push pxe conf
+  ansible.builtin.template:
+    src: pxe.conf.j2
+    dest: /etc/httpd/conf.d/pxe.conf
+
+- name: Push pxe conf
+  ansible.builtin.template:
+    src: pxe.conf.j2
+    dest: /etc/httpd/conf.d/pxe.conf
+
+- name: Firewall add HTTP(s) service
+  ansible.posix.firewalld:
+    service: "{{ item }}"
+    permanent: yes
+    immediate: yes
+    state: enabled
+  loop:
+    - http
+    - https
+
+- name: Start apache
+  ansible.builtin.service:
+    name: httpd
+    state: started
+    enabled: yes
+
+- name: Push ks conf
+  ansible.builtin.template:
+    src: ks.conf.j2
+    dest: "/var/www/html/pxe/{{ item.release }}/ks_files/{{ item.hostname }}.ks"
+  loop: "{{ pxe[0].servers | json_query('[]') }}"

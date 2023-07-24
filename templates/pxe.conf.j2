@@ -1,0 +1,12 @@
+<VirtualHost *:{{ apache_port }}>
+    DocumentRoot /var/www/html/pxe
+    ServerName www.pxe.monlab.local
+    ServerAlias pxe.monlab.local
+    ErrorLog "/var/log/httpd/pxe-error_log"
+    CustomLog "/var/log/httpd/pxe-access_log" common
+<Directory /var/www/html/pxe>
+    Options +Indexes
+    AllowOverride None
+    Require all granted
+</Directory>
+</VirtualHost>

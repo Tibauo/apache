@@ -1,0 +1,81 @@
+#version=RHEL8
+# Use graphical install
+text
+
+# Reboot after installation
+reboot
+
+%packages
+@^minimal-environment
+kexec-tools
+%end
+
+# Keyboard layouts
+keyboard --xlayouts='fr'
+# System language
+lang en_US.UTF-8
+
+# installation source
+url --url="{{ item.baseos }}"
+repo --name="AppStream" --baseurl="{{ item.appstream }}"
+
+# Network information
+#network  --bootproto=static --device=eth0 --onboot=yes --noipv6 --ip={{ item.ip_pxe }}  --gateway={{ item.ip_pxe  | regex_replace('.[0-9]$', '1') }} --netmask=255.255.255.0 --activate
+network --noipv6 --onboot=yes --bootproto=dhcp --activate --device=eth0
+{% if item.ip_okd is defined %}
+network  --bootproto=static --device=eth1 --onboot=yes --noipv6 --ip={{ item.ip_okd }} --gateway={{ item.ip_okd  | regex_replace('.[0-9]$', '1') }} --netmask=255.255.255.0 --activate 
+{% endif %}
+{% if item.ip_osp is defined %}
+network  --bootproto=static --device=eth1 --onboot=yes --noipv6 --ip={{ item.ip_osp }} --gateway={{ item.ip_osp  | regex_replace('.[0-9]$', '1') }} --netmask=255.255.255.0 --activate 
+{% endif %}
+{% if item.ip_mgmt is defined %}
+#network  --bootproto=static --device=eth1 --onboot=yes --noipv6 --ip={{ item.ip_mgmt }}  --gateway={{ item.ip_mgmt  | regex_replace('.[0-9]$', '1') }} --netmask=255.255.255.0 --activate
+network --noipv6 --onboot=yes --bootproto=dhcp --activate --device=eth1
+{% endif %}
+{% if item.ip_proxy is defined %}
+#network  --bootproto=static --device=eth2 --onboot=yes --noipv6 --ip={{ item.ip_proxy }} --gateway={{ item.ip_proxy  | regex_replace('.[0-9]$', '1') }} --netmask=255.255.255.0 --activate 
+network --noipv6 --onboot=yes --bootproto=dhcp --activate --device=eth2
+{% endif %}
+network  --hostname={{ item.hostname }}
+# Run the Setup Agent on first boot
+firstboot --enable
+
+ignoredisk --only-use=vda
+{% if item.part is defined %}
+{% for part in item.part %}
+part {{ part.partition }} --fstype="{{ part.fstype }}" --ondisk={{ part.disk }} --size={{ part.size }}
+{% endfor %}
+{% else %}
+autopart
+{% endif %}
+# Partition clearing information
+clearpart --none --initlabel
+
+# System timezone
+timezone Europe/Paris --isUtc --nontp
+
+# Root password
+rootpw --iscrypted $6$0p1ZTYa6fCEz2y/T$UKqBfo6t9hnDgSeLVImRpkmkR5jzB6JH3noQdk6OvCIlAiFf6g63K67/Am5podwAvET3MLO7aR7aphQ2el1g20
+
+%addon com_redhat_kdump --enable --reserve-mb='auto'
+
+%end
+
+%anaconda
+pwpolicy root --minlen=6 --minquality=1 --notstrict --nochanges --notempty
+pwpolicy user --minlen=6 --minquality=1 --notstrict --nochanges --emptyok
+pwpolicy luks --minlen=6 --minquality=1 --notstrict --nochanges --notempty
+%end
+%post --interpreter=/bin/sh
+mkdir -m0700 /root/.ssh/
+
+cat <<EOF >/root/.ssh/authorized_keys
+ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDha/FBtO6hGGxwA8bsLHWDCYHo8AvJ0pBrS7DeDkRIgF/SHo4mCUlMWU11vFaX4A515+BijhPTIIowTD9i9Sxja34r7bgViW4Ve8AFmh8yloagZt5sRzrlqtYGRl3qmOR7ogNQipkJ+XAS44rgirFwDB6mwCxUcD602Q/pGZHjuVSaoFHR5tUok2+L/Zb1vUQGKHJHGUj4qWCTJ+JkQW5hITYDfFzu+GlYhJUVRmkL2h5aHc440bZW9UK3b8GpqEHvQ6Zzga8WWoroIInTgG2EAYkErO4eAm4lAFb8KE91/d69yQMA4AEhjjAQjxJSBE04es6wJeZSCR9uXccIiZd3v3ZcbUMtn3gGiMr9BGOhsnQ/JCeRsGWGotkHqgGcuFKlxr25CZWK0RdX1jqedMaD2DkwMVoRfrf7K8pyz4wCyKNafrykFXcyG7obnvCW3t1IG7xcFnBsoLt6dWKMXIrfzPMU/9a+Ihx5NpwLMbtTtue6YiSIBjezNuCdMJTm+Ck= root@lab
+EOF
+
+### set permissions
+chmod 0600 /root/.ssh/authorized_keys
+
+### fix up selinux context
+restorecon -R /root/.ssh/
+%end
